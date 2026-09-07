@@ -1,136 +1,40 @@
-name: Build and Push Docker Image
+name: Build Kiri Image
 
 on:
   push:
+    branches: [main]
     paths:
-      - 'Dockerfile'
-      - 'entrypoint.sh'
-      - 'config/**'
-      - '.github/workflows/ci.yaml'
-    tags:
-    - 'v*'
+      - Dockerfile
+      - entrypoint.sh
+      - .github/workflows/ci.yaml
   workflow_dispatch:
 
 concurrency:
-  group: '${{ github.workflow }} @ ${{ github.ref }}'
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  packages: write
+
 jobs:
-  docker:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      issues: write
-      packages: write
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      - name: Log in to GHCR
-        uses: docker/login-action@v2
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Set tag name
-        id: tag_name
-        run: |
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "tag=latest" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
-          fi
-      - name: Extract full version from tag, ie refs/tags/v1.2.3 -> v1.2.3
-        id: full_version
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
-        run: |
-          echo "full_version=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
-      # Update `action.yml` to replace `__KIRI_VERSION__` with the full semver version
-      - name: Update action.yml
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          sed -i "s/__KIRI_VERSION__/${{ steps.full_version.outputs.full_version }}/g" action.yml
-      - name: Setup git config
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          git config --local user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-          git config --local user.name "${GITHUB_ACTOR}"
-      - name: Commit action.yml to the tag
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          git add action.yml
-          git commit -m "${{ steps.full_version.outputs.full_version }}" || true
-          git tag -d ${{ steps.full_version.outputs.full_version }} || true
-          git push origin :refs/tags/${{ steps.full_version.outputs.full_version }} || true
-          git tag ${{ steps.full_version.outputs.full_version }}
-          git push origin ${{ steps.full_version.outputs.full_version }}
-      - name: Build and push
-        uses: docker/build-push-action@v4
+      - name: Build and publish
+        uses: docker/build-push-action@v6
         with:
           push: true
-          tags: ghcr.io/wang-edward/kiri:${{ steps.tag_name.outputs.tag }}
+          tags: |
+            ghcr.io/wang-edward/kiri:v2
+            ghcr.io/wang-edward/kiri:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Extract minor version from tag, ie v1.2.3 -> v1.2
-        id: minor_version
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
-        run: |
-          echo "minor_version=${GITHUB_REF#refs/*/}" | sed 's/\.[^.]*$//' >> $GITHUB_OUTPUT
-      - name: Extract major version from tag, ie v1.2.3 -> v1
-        id: major_version
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
-        run: |
-          echo "major_version=${GITHUB_REF#refs/*/}" | sed 's/\.[^.]*$//' | sed 's/\.[^.]*$//' >> $GITHUB_OUTPUT
-      - name: Build and push minor version
-        uses: docker/build-push-action@v4
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
-        with:
-          push: true
-          tags: ghcr.io/wang-edward/kiri:${{ steps.minor_version.outputs.minor_version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - name: Build and push major version
-        uses: docker/build-push-action@v4
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
-        with:
-          push: true
-          tags: ghcr.io/wang-edward/kiri:${{ steps.major_version.outputs.major_version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - name: Re-tag minor and major version
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
-        run: |
-          git tag -d ${{ steps.minor_version.outputs.minor_version }} || true
-          git tag -d ${{ steps.major_version.outputs.major_version }} || true
-          git push origin :refs/tags/${{ steps.minor_version.outputs.minor_version }} || true
-          git push origin :refs/tags/${{ steps.major_version.outputs.major_version }} || true
-          git tag ${{ steps.minor_version.outputs.minor_version }} ${{ steps.full_version.outputs.full_version }}
-          git tag ${{ steps.major_version.outputs.major_version }} ${{ steps.full_version.outputs.full_version }}
-          git push origin ${{ steps.minor_version.outputs.minor_version }}
-          git push origin ${{ steps.major_version.outputs.major_version }}
-      - name: Create Release
-        id: create_release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.full_version.outputs.full_version }}
-          release_name: Release ${{ steps.full_version.outputs.full_version }}
-          draft: false
-          prerelease: false
-      - name: Create Issue on Failure
-        if: failure() && startsWith(github.ref, 'refs/tags/v')
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const create = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: "Failed to deploy release ${{ steps.full_version.outputs.full_version }}",
-              body: "Automation has failed us! Failed to push release ${{ steps.full_version.outputs.full_version }}\nMore information can be found at:\n - ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              assignees: [
-                "${{ github.actor }}"
-              ]
-            })
+      - name: Smoke test
+        run: docker run --rm ghcr.io/wang-edward/kiri:v2 --version

@@ -3,8 +3,7 @@
 
 This action runs [Kiri](https://github.com/leoheck/kiri) against a pull request and publishes an HTML preview.
 
-The base Kiri image is hosted at <https://github.com/wang-edward/kiri-github-action/pkgs/container/kiri>,
-which is based on the Kiri image at <https://github.com/leoheck/kiri-docker>
+The base image is hosted at <https://github.com/wang-edward/kiri-github-action/pkgs/container/kiri>. It ships KiCad 10 and diffs projects entirely through `kicad-cli`, so KiCad 9 and 10 projects are supported. Older formats that require the legacy OCaml plotting path (`plotgitsch`) are not supported.
 
 ## PR HTML Preview Setup
 
@@ -52,8 +51,6 @@ All inputs are **optional**.
 | `last`                   | Show last N commits                                                      |
 | `newer`                  | Show commits up to this one                                              |
 | `older`                  | Show commits starting from this one                                      |
-| `skip-cache`             | If set, skip usage of -cache.lib on plotgitsch                           |
-| `skip-kicad6-schematics` | If set, skip ploting Kicad 6 schematics (.kicad.sch)                     |
 | `force-layout-view`      | If set, force starting with the Layout view selected                     |
 | `pcb-page-frame`         | If set, disable page frame for PCB                                       |
 | `archive`                | If set, archive generated files                                          |
@@ -65,8 +62,7 @@ All inputs are **optional**.
 
 ## Examples
 
-Note: Don't use the main branch, use a tag instead. Using the main branch will result in trying to pull a Docker image that
-doesn't exist.
+Use a release tag for the action. Action releases use the maintained `ghcr.io/wang-edward/kiri:v2` image, so changing workflow code does not rebuild KiCad.
 
 ### Quick Start
 
