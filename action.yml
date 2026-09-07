@@ -37,40 +37,53 @@ runs:
   using: composite
   steps:
   - name: Get number of commits in PR
-    if: github.event_name == 'pull_request' && (github.event_name == 'pull_request' && github.event.action != 'closed')
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
     id: pr
     shell: bash
+    env:
+      INPUT_LAST: ${{ inputs.last }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PR_COMMITS: ${{ github.event.pull_request.commits }}
     run: |
-      # Set DEFAULT_LAST to the number of commits in the PR if ${{ inputs.last }} is not set. The minimum is 2.
-      if [ -z "${{ inputs.last }}" ]; then
-        # Un-shallow, but don't fail if it's already unshallow
-        git fetch --unshallow || true
-        git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
-        # Deepen topic branch; checkout topic branch
-        git fetch origin ${{ github.event.pull_request.head.ref }} --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
-        git checkout ${{ github.event.pull_request.head.ref }}
-        # Fetch main for common origin
-        git fetch origin main:main
-        COUNT=$(git rev-list --count ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
-        echo "DEFAULT_LAST=\"${COUNT}\"" >> $GITHUB_ENV
+      if [ -z "$INPUT_LAST" ]; then
+        depth=$((PR_COMMITS + 1))
+        # Keep the caller's detached PR head checked out; fork branch names are not available on origin.
+        git fetch --no-tags origin "$BASE_SHA" --depth="$depth"
+        git fetch --no-tags origin "$HEAD_SHA" --depth="$depth"
+        count=$(git rev-list --count "$BASE_SHA..$HEAD_SHA")
+        echo "default_last=$count" >> "$GITHUB_OUTPUT"
       else
-        echo "DEFAULT_LAST=\"${{ inputs.last }}\"" >> $GITHUB_ENV
+        echo "default_last=$INPUT_LAST" >> "$GITHUB_OUTPUT"
       fi
+  - name: Resolve Kiri output directory
+    id: kiri-output
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    shell: bash
+    env:
+      OUTPUT_DIR: ${{ inputs.output-dir }}
+      PROJECT_FILE: ${{ inputs.project-file }}
+    run: |
+      resolved_output_dir="$("${{ github.action_path }}/scripts/resolve-output-dir.sh" "$OUTPUT_DIR" "$PROJECT_FILE")"
+      echo "output-dir=$resolved_output_dir" >> "$GITHUB_OUTPUT"
   # If the PR hasn't changed any KiCad files, we don't need to run Kiri.
   - name: Check for KiCad files
     id: kicad-files
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     shell: bash
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     run: |
-      if git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -q '\.kicad\(_pro\|_sch\|_pcb\)\?$'; then
-        echo "changed=true" >> $GITHUB_OUTPUT
+      if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -q '\.kicad\(_pro\|_sch\|_pcb\)\?$'; then
+        echo "changed=true" >> "$GITHUB_OUTPUT"
       else
-        echo "changed=false" >> $GITHUB_OUTPUT
+        echo "changed=false" >> "$GITHUB_OUTPUT"
       fi
   - name: Run Kiri
     # The __KIRI VERSION__ below will be replaced by the semver version of the action
     # This is done by the release action and propagated to the tags
-    uses: docker://ghcr.io/hacker-fab/kiri:__KIRI_VERSION__
+    uses: docker://ghcr.io/wang-edward/kiri:__KIRI_VERSION__
     if: github.event_name == 'pull_request' && github.event.action != 'closed' && steps.kicad-files.outputs.changed == 'true'
     env:
       KIRI_PROJECT_FILE: ${{ inputs.project-file }}
@@ -83,43 +96,22 @@ runs:
       KIRI_SKIP_CACHE: ${{ inputs.skip-cache }}
       KIRI_OLDER: ${{ inputs.older }}
       KIRI_NEWER: ${{ inputs.newer }}
-      KIRI_LAST: ${{ steps.pr.outputs.DEFAULT_LAST }}
+      KIRI_LAST: ${{ steps.pr.outputs.default_last }}
       KIRI_ALL: ${{ inputs.all }}
       KIRI_DEBUG: ${{ inputs.kiri-debug }}
       KIRI_TAG: ${{ inputs.kiri-tag }}
     with:
       args: ${{ inputs.extra-args }}
-  - name: Upload Kiri custom output
-    uses: actions/upload-artifact@v4
-    if: inputs.output-dir != '' && github.event_name == 'pull_request' && github.event.action != 'closed' && steps.kicad-files.outputs.changed == 'true'
-    with:
-      name: kiri-output
-      path: ${{ inputs.output-dir }}
-      include-hidden-files: true
-  - name: Get Kiri output directory
-    id: kiri-output
-    if : inputs.output-dir == '' && github.event_name == 'pull_request' && github.event.action != 'closed' && steps.kicad-files.outputs.changed == 'true'
-    shell: bash
-    run: |
-      # If output-dir is not set, the output directory is in the same folder as the project file, in the folder .kiri
-      # If the project file is not set, the output directory is simply .kiri
-      if [ -z "${{ inputs.project-file }}" ]; then
-        echo "output-dir=.kiri" >> $GITHUB_OUTPUT
-      else
-        echo "output-dir=$(dirname ${{ inputs.project-file }})/.kiri" >> $GITHUB_OUTPUT
-      fi
-      find ~ -type d -name ".kiri"
-      tree /home/runner/work/phoenix/phoenix/schematics/phoenix_v1/.kiri
   - name: Upload Kiri output
     uses: actions/upload-artifact@v4
-    if: inputs.output-dir == '' && github.event_name == 'pull_request' && github.event.action != 'closed' && steps.kicad-files.outputs.changed == 'true'
+    if: github.event_name == 'pull_request' && github.event.action != 'closed' && steps.kicad-files.outputs.changed == 'true'
     with:
       name: kiri-output
       path: ${{ steps.kiri-output.outputs.output-dir }}
       include-hidden-files: true
   - name: Checkout gh-pages branch
     if: github.event_name == 'pull_request'
-    uses: actions/checkout@v3
+    uses: actions/checkout@v4
     with:
       ref: gh-pages
       fetch-depth: 0
@@ -128,59 +120,56 @@ runs:
     if: github.event_name == 'pull_request'
     shell: bash
     run: |
-      cd gh-pages
+      cd "gh-pages"
       git config --local user.email github-actions@github.com
       git config --local user.name github-actions
   - name: Copy the output to a subdirectory of the gh-pages branch
     if: github.event_name == 'pull_request' && github.event.action != 'closed' && steps.kicad-files.outputs.changed == 'true'
     shell: bash
+    env:
+      OUTPUT_DIR: ${{ steps.kiri-output.outputs.output-dir }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
     run: |
-      rm -rf gh-pages/pr-previews/${{ github.event.pull_request.number }}
-      mkdir -p gh-pages/pr-previews/${{ github.event.pull_request.number }}
-      cp -r ${{ steps.kiri-output.outputs.output-dir }}/* gh-pages/pr-previews/${{ github.event.pull_request.number }}
+      "${{ github.action_path }}/scripts/manage-preview.sh" update "$OUTPUT_DIR" "gh-pages" "$PR_NUMBER"
   - name: Commit and push the changes
     if: github.event_name == 'pull_request' && github.event.action != 'closed' && steps.kicad-files.outputs.changed == 'true'
     shell: bash
     id: commit
     run: |
-      cd gh-pages
+      cd "gh-pages"
       git add -A
       git commit -m "Update Kiri output for PR #${{ github.event.pull_request.number }}" || true
       git push origin gh-pages
-      echo "repository_name=${REPO##*/}" >> $GITHUB_OUTPUT
-    env:
-      REPO: ${{ github.repository }}
   - name: Create a comment with the link to the output
     if: github.event_name == 'pull_request' && github.event.action != 'closed' && steps.kicad-files.outputs.changed == 'true'
-    uses: peter-evans/create-or-update-comment@v4
+    uses: marocchino/sticky-pull-request-comment@v2
     with:
-      issue-number: ${{ github.event.pull_request.number }}
+      header: kiri-preview
       body: |
-        Kiri diff output is available at https://${{ github.repository_owner }}.github.io/${{ steps.commit.outputs.repository_name }}/pr-previews/${{ github.event.pull_request.number }}/web/index.html
+        Kiri diff output is available at https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pr-previews/${{ github.event.pull_request.number }}/web/index.html
   - name: Delete pr-previews/${{ github.event.pull_request.number }}
     id: delete
     shell: bash
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     run: |
-      cd gh-pages
-      rm -rf pr-previews/${{ github.event.pull_request.number }}
-      if [ -n "$(git status --porcelain pr-previews/${{ github.event.pull_request.number }})" ]; then
-        git add -A
-        echo "deleted=true" >> $GITHUB_OUTPUT
+      "${{ github.action_path }}/scripts/manage-preview.sh" delete "gh-pages" "${{ github.event.pull_request.number }}"
+      if [ -n "$(git -C "gh-pages" status --porcelain "pr-previews/${{ github.event.pull_request.number }}")" ]; then
+        git -C "gh-pages" add -A
+        echo "deleted=true" >> "$GITHUB_OUTPUT"
       else
-        echo "deleted=false" >> $GITHUB_OUTPUT
+        echo "deleted=false" >> "$GITHUB_OUTPUT"
       fi
   - name: Commit and push
     if: steps.delete.outputs.deleted == 'true' && github.event_name == 'pull_request' && github.event.action == 'closed'
     shell: bash
     run: |
-      cd gh-pages
+      cd "gh-pages"
       git commit -m "Delete Kiri output for PR #${{ github.event.pull_request.number }}"
       git push origin gh-pages
   - name: Create a comment on the PR
     if: steps.delete.outputs.deleted == 'true' && github.event_name == 'pull_request' && github.event.action == 'closed'
-    uses: peter-evans/create-or-update-comment@v4
+    uses: marocchino/sticky-pull-request-comment@v2
     with:
-      issue-number: ${{ github.event.pull_request.number }}
+      header: kiri-preview
       body: |
         Kiri diff output has been deleted.

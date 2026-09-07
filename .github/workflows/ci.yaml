@@ -18,7 +18,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
       - name: Log in to GHCR
@@ -63,7 +63,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           push: true
-          tags: ghcr.io/hacker-fab/kiri:${{ steps.tag_name.outputs.tag }}
+          tags: ghcr.io/wang-edward/kiri:${{ steps.tag_name.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Extract minor version from tag, ie v1.2.3 -> v1.2
@@ -81,7 +81,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
         with:
           push: true
-          tags: ghcr.io/hacker-fab/kiri:${{ steps.minor_version.outputs.minor_version }}
+          tags: ghcr.io/wang-edward/kiri:${{ steps.minor_version.outputs.minor_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build and push major version
@@ -89,7 +89,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
         with:
           push: true
-          tags: ghcr.io/hacker-fab/kiri:${{ steps.major_version.outputs.major_version }}
+          tags: ghcr.io/wang-edward/kiri:${{ steps.major_version.outputs.major_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Re-tag minor and major version

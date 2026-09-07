@@ -1,17 +1,27 @@
 
 # Kiri Pull Request GitHub Action
 
-This is a convenient and easy way to run [Kiri](https://github.com/leoheck/kiri) against a Pull Request using GitHub Actions.
+This action runs [Kiri](https://github.com/leoheck/kiri) against a pull request and publishes an HTML preview.
 
-The base Kiri image is hosted in the GitHub Container Repository here <https://github.com/USA-RedDragon/kiri-github-action/pkgs/container/kiri>,
+The base Kiri image is hosted at <https://github.com/wang-edward/kiri-github-action/pkgs/container/kiri>,
 which is based on the Kiri image at <https://github.com/leoheck/kiri-docker>
 
 ## PR HTML Preview Setup
 
-In order to provide PRs with a link to preview the changes, this action pushes to the `gh-pages` branch of the source
-repository and hosts the Kiri output in subdirectories.
+The action pushes previews to `gh-pages`, under `pr-previews/<PR number>/`. This retains previews for simultaneous pull requests.
 
-For this to work properly, you'll need to make an empty `gh-pages` branch with the file `.nojekyll` (to avoid `_KIRI_` folders returning a 404).
+The repository must have a `gh-pages` branch containing `.nojekyll` (so `_KIRI_` folders do not return 404s). Configure GitHub Pages to publish from that branch.
+
+The caller workflow needs these permissions:
+
+```yaml
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+```
+
+Fork pull requests receive a read-only `GITHUB_TOKEN` for normal `pull_request` workflows and therefore cannot publish to `gh-pages` or update comments. Use a trusted workflow design only if publishing fork previews is required; do not expose write-capable secrets to untrusted PR code.
 
 This can be done quickly like so:
 
@@ -77,12 +87,16 @@ on:
 jobs:
   kiri-diff:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}
     - name: Kiri
-      uses: usa-reddragon/kiri-github-action@v1
+      uses: wang-edward/kiri-github-action@v2.0.6
       with:
         project-file: kicad/productname.kicad_pro
 ```
@@ -103,7 +117,11 @@ on:
 jobs:
   kiri-delete:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
     - name: Kiri
-      uses: usa-reddragon/kiri-github-action@v1
+      uses: wang-edward/kiri-github-action@v2.0.6
 ```

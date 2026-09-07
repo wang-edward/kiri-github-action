@@ -4,9 +4,9 @@ FROM ubuntu:22.04
 
 LABEL org.opencontainers.image.authors "Leandro Heck <leoheck@gmail.com>, Jacob McSwain <kiri-github-action@mcswain.dev>"
 LABEL org.opencontainers.image.description "Kicad 7 and KiRI"
-LABEL org.opencontainers.image.url "https://github.com/USA-RedDragon/kiri-github-action/pkgs/container/kiri"
-LABEL org.opencontainers.image.documentation "https://github.com/USA-RedDragon/kiri-github-action"
-LABEL org.opencontainers.image.source "https://github.com/USA-RedDragon/kiri-github-action"
+LABEL org.opencontainers.image.url "https://github.com/wang-edward/kiri-github-action/pkgs/container/kiri"
+LABEL org.opencontainers.image.documentation "https://github.com/wang-edward/kiri-github-action"
+LABEL org.opencontainers.image.source "https://github.com/wang-edward/kiri-github-action"
 
 ARG DEBIAN_FRONTEND noninteractive
 ARG DEBCONF_NOWARNINGS="yes"
