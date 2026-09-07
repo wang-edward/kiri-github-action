@@ -96,7 +96,7 @@ jobs:
       with:
         ref: ${{ github.event.pull_request.head.sha }}
     - name: Kiri
-      uses: wang-edward/kiri-github-action@v2.0.6
+      uses: wang-edward/kiri-github-action@v2.0.7
       with:
         project-file: kicad/productname.kicad_pro
 ```
@@ -123,5 +123,5 @@ jobs:
       pull-requests: write
     steps:
     - name: Kiri
-      uses: wang-edward/kiri-github-action@v2.0.6
+      uses: wang-edward/kiri-github-action@v2.0.7
 ```

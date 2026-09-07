@@ -8,7 +8,8 @@ on:
       - 'config/**'
       - '.github/workflows/ci.yaml'
     tags:
-    - 'v[0-9]+.[0-9]+.[0-9]+'
+    - 'v*'
+  workflow_dispatch:
 
 concurrency:
   group: '${{ github.workflow }} @ ${{ github.ref }}'
