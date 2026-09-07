@@ -18,6 +18,10 @@ concurrency:
 jobs:
   docker:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
@@ -109,7 +113,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.full_version.outputs.full_version }}
           release_name: Release ${{ steps.full_version.outputs.full_version }}
@@ -125,7 +129,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: "Failed to deploy release ${{ steps.full_version.outputs.full_version }}",
-              body: "Automation has failed us! Failed to push release ${{ steps.full_version.outputs.full_version }}\nMore information can be found at:\n - ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              body: "Automation has failed us! Failed to push release ${{ steps.full_version.outputs.full_version }}\nMore information can be found at:\n - ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
               assignees: [
                 "${{ github.actor }}"
               ]
