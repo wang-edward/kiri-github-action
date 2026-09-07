@@ -5,6 +5,11 @@ if [ -n "${KIRI_DEBUG:-}" ]; then
     set -x
 fi
 
+# The container runs as root while the mounted workspace is owned by the
+# runner user, so git's dubious-ownership guard would otherwise reject it
+# and Kiri would report the project is "not inside a git directory".
+git config --global --add safe.directory '*'
+
 kiri_args=(--no-server)
 
 if [ -n "${KIRI_OUTPUT_DIR:-}" ]; then
