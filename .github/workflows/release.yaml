@@ -17,8 +17,13 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Create GitHub release
+      - name: Create GitHub release if needed
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag || github.ref_name }}
-        run: gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --generate-notes
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            printf 'Release %s already exists.\n' "$TAG"
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --generate-notes
+          fi
