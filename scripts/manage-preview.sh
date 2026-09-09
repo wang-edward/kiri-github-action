@@ -15,6 +15,8 @@ case "$command" in
     rm -rf "$preview_dir"
     mkdir -p "$preview_dir"
     cp -a "$output_dir/." "$preview_dir/"
+    # delete unused diff file to not blowup storage
+    rm -f "$preview_dir/diff.txt"
     ;;
   delete)
     rm -rf "$preview_dir"
